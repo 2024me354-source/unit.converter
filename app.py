@@ -1,5 +1,4 @@
-import gradio as gr
-from typing import Tuple
+import streamlit as st
 
 # --- Unit tables ---
 UNITS = {
@@ -12,116 +11,171 @@ UNITS = {
         "ft": 0.3048,
         "yd": 0.9144,
         "mile": 1609.344,
-        "nmi": 1852.0,   # nautical mile
     },
     "Mass": {
         "kg": 1.0,
         "g": 0.001,
         "mg": 1e-6,
         "lb": 0.45359237,
-        "oz": 0.028349523125,
+        "oz": 0.0283495,
         "tonne": 1000.0,
-        "stone": 6.35029318,
     },
-    "Volume": {
-        "L": 1.0,
-        "mL": 0.001,
-        "m^3": 1000.0,
-        "gal": 3.785411784,
-        "qt": 0.946352946,
-        "pt": 0.473176473,
-        "cup": 0.24,
-        "fl oz": 0.0295735295625,
-    },
+    "Temperature": {"C": None, "F": None, "K": None},
     "Area": {
         "m²": 1.0,
         "cm²": 0.0001,
         "mm²": 1e-6,
-        "km²": 1_000_000.0,
-        "ft²": 0.092903,
+        "km²": 1e6,
         "in²": 0.00064516,
+        "ft²": 0.092903,
         "yd²": 0.836127,
-        "acre": 4046.8564224,
-        "hectare": 10_000.0,
+        "acre": 4046.86,
+        "hectare": 10000.0,
     },
-    "Temperature": {
-        "C": None,
-        "F": None,
-        "K": None,
+    "Volume": {
+        "m³": 1.0,
+        "cm³": 1e-6,
+        "mm³": 1e-9,
+        "L": 0.001,
+        "mL": 1e-6,
+        "in³": 1.6387e-5,
+        "ft³": 0.0283168,
+        "yd³": 0.764555,
+        "gal (US)": 0.00378541,
+    },
+    "Amount of Substance": {
+        "mol": 1.0,
+        "mmol": 0.001,
+        "kmol": 1000.0,
     },
 }
 
 # --- Temperature helpers ---
-def temp_to_celsius(value: float, unit: str) -> float:
+def temp_to_celsius(value, unit):
     if unit == "C": return value
-    if unit == "F": return (value - 32.0) * 5.0/9.0
+    if unit == "F": return (value - 32) * 5/9
     if unit == "K": return value - 273.15
-    raise ValueError(f"Unknown unit {unit}")
 
-def celsius_to_target(value_c: float, unit: str) -> float:
+def celsius_to_target(value_c, unit):
     if unit == "C": return value_c
-    if unit == "F": return value_c * 9.0/5.0 + 32.0
+    if unit == "F": return value_c * 9/5 + 32
     if unit == "K": return value_c + 273.15
-    raise ValueError(f"Unknown unit {unit}")
 
-# --- Conversion logic ---
-def convert_value(value, from_unit: str, to_unit: str, category: str, decimals: int) -> str:
+# --- Conversion ---
+def convert(value, from_unit, to_unit, category, decimals):
     try:
         v = float(value)
     except Exception:
-        return f"❗ Input '{value}' is not a number."
+        return "❗ Please enter a valid number."
 
     if category == "Temperature":
         v_c = temp_to_celsius(v, from_unit)
         result = celsius_to_target(v_c, to_unit)
     else:
-        units_map = UNITS[category]
-        value_in_base = v * units_map[from_unit]
-        result = value_in_base / units_map[to_unit]
+        base = v * UNITS[category][from_unit]
+        result = base / UNITS[category][to_unit]
 
-    return f"{v} {from_unit} = {result:.{int(decimals)}f} {to_unit}"
+    return f"{v} {from_unit} = {result:.{decimals}f} {to_unit}"
 
-# --- Helpers ---
-def choices_for(category: str) -> list[str]:
-    return sorted(list(UNITS[category].keys()))
+# --- Page config ---
+st.set_page_config(page_title="🌐 Unique Unit Converter", layout="centered")
 
-def update_units(cat: str) -> Tuple[gr.Dropdown, gr.Dropdown]:
-    opts = choices_for(cat)
-    default_from = opts[0]
-    default_to = opts[1] if len(opts) > 1 else opts[0]
-    return (
-        gr.update(choices=opts, value=default_from),
-        gr.update(choices=opts, value=default_to),
-    )
+# --- Custom CSS ---
+st.markdown("""
+<style>
+.stApp {
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    color: white;
+    font-family: 'Segoe UI', sans-serif;
+}
+h1 {
+    text-align: center;
+    color: #ffcc70;
+    text-shadow: 0px 0px 10px rgba(255,200,100,0.8);
+}
+.stSelectbox label, .stNumberInput label, .stSlider label, .stTextInput label {
+    font-weight: bold !important;
+    color: #ffcc70 !important;
+}
+.result-box {
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.1);
+    text-align: center;
+    font-size: 18px;
+    font-weight: bold;
+}
+/* Orange button style */
+div.stButton > button:first-child {
+    background-color: #ff7b00;
+    color: white;
+    font-weight: bold;
+    border-radius: 10px;
+    border: none;
+    padding: 0.6em 1.2em;
+    transition: 0.3s;
+}
+div.stButton > button:first-child:hover {
+    background-color: #ff9f40;
+    color: black;
+}
+</style>
+""", unsafe_allow_html=True)
 
-def swap(f: str, t: str) -> Tuple[str, str]:
-    return t, f
+# --- Title ---
+st.markdown("<h1>🌐 Unique Unit Converter</h1>", unsafe_allow_html=True)
 
-# --- Gradio UI ---
-with gr.Blocks(title="Unit Converter") as demo:
-    gr.Markdown("## 🌐 Simple Unit Converter)")
+# --- Session state ---
+if "history" not in st.session_state:
+    st.session_state.history = []
 
-    category = gr.Dropdown(choices=list(UNITS.keys()), value="Length", label="Category")
+# --- Inputs ---
+category = st.selectbox("Select category", list(UNITS.keys()))
+units = list(UNITS[category].keys())
+value = st.text_input("Enter value", "1")
+col1, col2 = st.columns(2)
+with col1:
+    from_unit = st.selectbox("From", units)
+with col2:
+    to_unit = st.selectbox("To", units)
 
-    with gr.Row():
-        value_in = gr.Number(value=1, label="Value")
-        from_unit = gr.Dropdown(choices=choices_for("Length"), value="m", label="From unit")
-        to_unit = gr.Dropdown(choices=choices_for("Length"), value="ft", label="To unit")
+decimals = st.slider("Decimal places", 0, 8, 4)
 
-    decimals = gr.Slider(0, 10, value=4, step=1, label="Decimal places")
+# --- Buttons ---
+colA, colB = st.columns(2)
+with colA:
+    if st.button("Convert 🚀"):
+        result = convert(value, from_unit, to_unit, category, decimals)
+        st.markdown(f"<div class='result-box'>{result}</div>", unsafe_allow_html=True)
+        if "❗" not in result:  # only store valid results
+            st.session_state.history.insert(0, result)
 
-    with gr.Row():
-        convert_btn = gr.Button("Convert")
-        swap_btn = gr.Button("Swap units")
+with colB:
+    if st.button("Reset 🔄"):
+        st.session_state.history.clear()
+        st.rerun()
 
-    output = gr.Textbox(label="Result", interactive=False)
+# --- History Panel ---
+if st.session_state.history:
+    st.subheader("📜 Conversion History")
+    for item in st.session_state.history[:5]:  # show last 5
+        st.write(item)
 
-    # Events
-    category.change(fn=update_units, inputs=category, outputs=[from_unit, to_unit])
-    convert_btn.click(fn=convert_value, inputs=[value_in, from_unit, to_unit, category, decimals], outputs=output)
-    swap_btn.click(fn=swap, inputs=[from_unit, to_unit], outputs=[from_unit, to_unit])
+# --- Tiny JS Sparkle ---
+st.markdown("""
+<script>
+document.body.addEventListener("click", function(e) {
+    let spark = document.createElement("span");
+    spark.innerHTML = "✨";
+    spark.style.position = "absolute";
+    spark.style.left = e.pageX + "px";
+    spark.style.top = e.pageY + "px";
+    spark.style.fontSize = "20px";
+    document.body.appendChild(spark);
+    setTimeout(()=> spark.remove(), 600);
+});
+</script>
+""", unsafe_allow_html=True)
 
-# Hugging Face Spaces automatically runs demo.launch()
-if __name__ == "__main__":
-    demo.launch()
 
